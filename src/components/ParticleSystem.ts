@@ -59,9 +59,16 @@ export class ParticleSystem {
         uniform vec3 color;
 
         void main() {
-          float r = distance(gl_PointCoord, vec2(0.5));
-          if (r > 0.5) discard;
-          float alpha = 1.0 - smoothstep(0.3, 0.5, r);
+          vec2 center = gl_PointCoord - vec2(0.5);
+          float dist = length(center);
+
+          // Soft circular gradient
+          float alpha = 1.0 - smoothstep(0.0, 0.5, dist);
+
+          // Add glow effect
+          float glow = exp(-dist * 3.0) * 0.5;
+          alpha += glow;
+
           gl_FragColor = vec4(color, alpha);
         }
       `,
