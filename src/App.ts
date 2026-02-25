@@ -4,7 +4,7 @@ import { CameraDisplay } from './components/CameraDisplay';
 import { ParticleSystem } from './components/ParticleSystem';
 import { ParticleTrail } from './components/ParticleTrail';
 import { CountdownState } from './types/particle';
-import Stats from 'stats.ts';
+import { Stats } from 'stats.ts';
 
 export class App {
   private scene: THREE.Scene;
