@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import Stats from 'stats.ts';
 import { HandTracker } from './components/HandTracker';
+import { CameraDisplay } from './components/CameraDisplay';
 
 export class App {
   private scene: THREE.Scene;
@@ -8,6 +9,7 @@ export class App {
   private renderer: THREE.WebGLRenderer;
   private stats: Stats;
   private handTracker: HandTracker;
+  private cameraDisplay: CameraDisplay;
 
   constructor() {
     // Scene
@@ -50,6 +52,10 @@ export class App {
     try {
       await this.handTracker.init();
       await this.handTracker.startCamera();
+
+      // Initialize camera display
+      this.cameraDisplay = new CameraDisplay(this.handTracker.video);
+
       console.log('Hand tracking initialized');
     } catch (error) {
       console.error('Failed to initialize hand tracking:', error);
@@ -58,6 +64,16 @@ export class App {
 
   private animate() {
     this.stats.begin();
+
+    // Detect hand
+    this.handTracker.detect();
+
+    // Draw camera frame with skeleton
+    const results = this.handTracker.getLandmarks();
+    if (results?.landmarks[0]) {
+      this.cameraDisplay.drawFrame(results.landmarks[0]);
+    }
+
     requestAnimationFrame(this.animate.bind(this));
     this.renderer.render(this.scene, this.camera);
     this.stats.end();
