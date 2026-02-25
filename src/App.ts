@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import Stats from 'stats.ts';
 import { HandTracker } from './components/HandTracker';
 import { CameraDisplay } from './components/CameraDisplay';
+import { ParticleSystem } from './components/ParticleSystem';
 
 export class App {
   private scene: THREE.Scene;
@@ -10,6 +11,7 @@ export class App {
   private stats: Stats;
   private handTracker: HandTracker;
   private cameraDisplay: CameraDisplay;
+  private particleSystem: ParticleSystem;
 
   constructor() {
     // Scene
@@ -37,6 +39,9 @@ export class App {
     // Initialize hand tracking
     this.handTracker = new HandTracker();
     this.initHandTracking();
+
+    // Initialize particle system
+    this.particleSystem = new ParticleSystem(this.scene);
 
     // Start animation loop
     this.animate();
@@ -67,6 +72,9 @@ export class App {
 
     // Detect hand
     this.handTracker.detect();
+
+    // Update particle system
+    this.particleSystem.update(0.016); // Assume 60 FPS
 
     // Draw camera frame with skeleton
     const results = this.handTracker.getLandmarks();

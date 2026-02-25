@@ -52,7 +52,7 @@ export class HandTracker {
 
     const landmarks = results.landmarks[0];
     this.fingerCount = this.countFingers(landmarks);
-    this.handPosition = this.getHandPosition(landmarks);
+    this.handPosition = this.calculateHandPosition(landmarks);
 
     return this.fingerCount;
   }
@@ -77,7 +77,7 @@ export class HandTracker {
     return count;
   }
 
-  private getHandPosition(landmarks: Array<{x: number, y: number, z: number}>): [number, number, number] {
+  private calculateHandPosition(landmarks: Array<{x: number, y: number, z: number}>): [number, number, number] {
     // Use wrist position (landmark 0) as hand position
     // Normalize to 3D space (-10 to +10)
     return [
