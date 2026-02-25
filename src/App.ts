@@ -3,6 +3,7 @@ import Stats from 'stats.ts';
 import { HandTracker } from './components/HandTracker';
 import { CameraDisplay } from './components/CameraDisplay';
 import { ParticleSystem } from './components/ParticleSystem';
+import { ParticleTrail } from './components/ParticleTrail';
 import { CountdownState } from './types/particle';
 
 export class App {
@@ -13,6 +14,7 @@ export class App {
   private handTracker: HandTracker;
   private cameraDisplay: CameraDisplay;
   private particleSystem: ParticleSystem;
+  private particleTrail: ParticleTrail;
   private countdownState: CountdownState = CountdownState.IDLE;
   private currentPhase: number = 0;
   private countdownSequence: string[] = ['5', '4', '3', '2', '1'];
@@ -49,6 +51,9 @@ export class App {
 
     // Initialize particle system
     this.particleSystem = new ParticleSystem(this.scene);
+
+    // Initialize particle trail
+    this.particleTrail = new ParticleTrail(this.scene);
 
     // Create status indicator
     this.statusElement = document.createElement('div');
@@ -196,6 +201,12 @@ export class App {
 
     // Detect hand
     const fingerCount = this.handTracker.detect();
+    const handPos = this.handTracker.getHandPosition();
+
+    // Spawn trail particles if hand is detected
+    if (fingerCount > 0) {
+      this.particleTrail.spawn(handPos);
+    }
 
     // State machine
     switch (this.countdownState) {
@@ -210,8 +221,9 @@ export class App {
         break;
     }
 
-    // Update particle system
-    this.particleSystem.update(0.016); // Assume 60 FPS
+    // Update particle systems
+    this.particleSystem.update(0.016);
+    this.particleTrail.update(0.016);
 
     // Draw camera frame with skeleton
     const results = this.handTracker.getLandmarks();
