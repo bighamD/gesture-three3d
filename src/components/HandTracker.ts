@@ -21,14 +21,13 @@ export class HandTracker {
 
     this.landmarker = await HandLandmarker.createFromOptions(vision, {
       baseOptions: {
-        modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
-        delegate: 'CPU' // Use CPU to avoid GPU compatibility issues
+        modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
       },
       runningMode: 'VIDEO',
       numHands: 1
     });
 
-    console.log('Hand tracking initialized with CPU delegate');
+    console.log('Hand tracking initialized');
   }
 
   async startCamera(): Promise<void> {
