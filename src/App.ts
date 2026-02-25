@@ -1,9 +1,11 @@
 import * as THREE from 'three';
+import Stats from 'stats.ts';
 
 export class App {
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
   private renderer: THREE.WebGLRenderer;
+  private stats: Stats;
 
   constructor() {
     // Scene
@@ -23,6 +25,11 @@ export class App {
     // Handle resize
     window.addEventListener('resize', this.onWindowResize.bind(this));
 
+    // FPS counter
+    this.stats = new Stats();
+    this.stats.showPanel(0);
+    document.body.appendChild(this.stats.dom);
+
     // Start animation loop
     this.animate();
   }
@@ -34,7 +41,9 @@ export class App {
   }
 
   private animate() {
+    this.stats.begin();
     requestAnimationFrame(this.animate.bind(this));
     this.renderer.render(this.scene, this.camera);
+    this.stats.end();
   }
 }
