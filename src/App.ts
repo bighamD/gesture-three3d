@@ -25,8 +25,31 @@ export class App {
   private frameCount: number = 0;
   private fpsUpdateInterval: number = 1000; // ms
   private currentFPS: number = 60;
+  private loadingElement: HTMLElement;
 
   constructor() {
+    // Create loading screen
+    this.loadingElement = document.createElement('div');
+    this.loadingElement.style.position = 'fixed';
+    this.loadingElement.style.top = '0';
+    this.loadingElement.style.left = '0';
+    this.loadingElement.style.width = '100%';
+    this.loadingElement.style.height = '100%';
+    this.loadingElement.style.backgroundColor = 'rgba(0, 0, 0, 0.9)';
+    this.loadingElement.style.display = 'flex';
+    this.loadingElement.style.flexDirection = 'column';
+    this.loadingElement.style.justifyContent = 'center';
+    this.loadingElement.style.alignItems = 'center';
+    this.loadingElement.style.zIndex = '1000';
+    this.loadingElement.style.fontFamily = 'Arial, sans-serif';
+    this.loadingElement.innerHTML = `
+      <div style="color: white; font-size: 32px; font-weight: bold; margin-bottom: 20px;">
+        Loading 3D Particle Countdown
+      </div>
+      <div style="color: #aaa; font-size: 16px;">Please wait while we load the hand tracking model...</div>
+    `;
+    document.body.appendChild(this.loadingElement);
+
     // Scene
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x000000);
@@ -99,12 +122,14 @@ export class App {
       this.cameraDisplay = new CameraDisplay(this.handTracker.video);
 
       console.log('Hand tracking initialized');
-      this.updateStatus('Hand tracking active', 'rgba(0, 255, 0, 0.8)');
+      this.hideLoadingScreen();
+      this.updateStatus('Show 5 fingers to start', 'rgba(100, 100, 100, 0.8)');
     } catch (error) {
       console.error('Failed to initialize hand tracking:', error);
 
       // Check if camera permission was denied
       if (error instanceof DOMException && error.name === 'NotAllowedError') {
+        this.hideLoadingScreen();
         this.updateStatus('Camera access denied. Please allow camera access.', 'rgba(255, 0, 0, 0.8)');
 
         // Add retry button
@@ -125,6 +150,7 @@ export class App {
         };
         document.body.appendChild(retryButton);
       } else {
+        this.hideLoadingScreen();
         this.updateStatus('Failed to load hand tracking. Please refresh.', 'rgba(255, 0, 0, 0.8)');
       }
     }
@@ -224,6 +250,14 @@ export class App {
   private updateStatus(message: string, color: string = 'rgba(100, 100, 100, 0.8)') {
     this.statusElement.textContent = message;
     this.statusElement.style.backgroundColor = color;
+  }
+
+  private hideLoadingScreen() {
+    this.loadingElement.style.opacity = '0';
+    this.loadingElement.style.transition = 'opacity 0.5s';
+    setTimeout(() => {
+      this.loadingElement.remove();
+    }, 500);
   }
 
   private animate() {
