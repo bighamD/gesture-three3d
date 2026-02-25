@@ -41,46 +41,15 @@ export class ParticleSystem {
       this.geometry.morphAttributes.position.push(new THREE.BufferAttribute(targetPositions, 3));
     });
 
-    // Create shader material
-    this.material = new THREE.ShaderMaterial({
-      uniforms: {
-        morphProgress: { value: 0.0 },
-        color: { value: new THREE.Color(0xFFFFFF) },
-        pointSize: { value: 4.0 }
-      },
-      vertexShader: `
-        uniform float morphProgress;
-        uniform float pointSize;
-
-        void main() {
-          vec3 pos = position;
-          if (morphAttributes.position.length > 0) {
-            pos = mix(position, morphAttributes.position[0], morphProgress);
-          }
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-          gl_PointSize = pointSize;
-        }
-      `,
-      fragmentShader: `
-        uniform vec3 color;
-
-        void main() {
-          vec2 center = gl_PointCoord - vec2(0.5);
-          float dist = length(center);
-
-          // Soft circular gradient
-          float alpha = 1.0 - smoothstep(0.0, 0.5, dist);
-
-          // Add glow effect
-          float glow = exp(-dist * 3.0) * 0.5;
-          alpha += glow;
-
-          gl_FragColor = vec4(color, alpha);
-        }
-      `,
+    // Create points material (using standard material first)
+    this.material = new THREE.PointsMaterial({
+      color: 0xFFFFFF,
+      size: 2.0,
       transparent: true,
+      opacity: 0.8,
+      blending: THREE.AdditiveBlending,
       depthWrite: false,
-      blending: THREE.AdditiveBlending
+      sizeAttenuation: true
     });
 
     // Create points mesh
@@ -105,40 +74,28 @@ export class ParticleSystem {
     this.isMorphing = true;
     this.morphProgress = 0;
 
-    // Update geometry
-    const currentPositions = this.morphTargets.get(this.currentDigit)!;
+    console.log(`Morphing from ${this.currentDigit} to ${targetDigit}`);
+
+    // Update geometry to target digit immediately (simplified version)
+    const targetPositions = this.morphTargets.get(targetDigit)!;
     const positionAttr = this.geometry.attributes.position as THREE.BufferAttribute;
-    for (let i = 0; i < currentPositions.length; i++) {
-      positionAttr.array[i] = currentPositions[i];
+    for (let i = 0; i < targetPositions.length; i++) {
+      positionAttr.array[i] = targetPositions[i];
     }
     positionAttr.needsUpdate = true;
 
-    // Start color transition (will be handled in update)
+    // Complete morphing immediately (for now, without animation)
+    this.isMorphing = false;
+    this.currentDigit = targetDigit;
+    this.morphProgress = 0;
+
+    // Update material color
+    this.material.color.setHex(parseInt(this.digitColors.get(targetDigit)!.getHexString(), 16));
   }
 
   update(_deltaTime: number): void {
-    if (this.isMorphing) {
-      const elapsed = performance.now() - this.morphStartTime;
-      this.morphProgress = Math.min(elapsed / this.morphDuration, 1.0);
-
-      // Ease-out cubic
-      const eased = 1 - Math.pow(1 - this.morphProgress, 3);
-      this.material.uniforms.morphProgress.value = eased;
-
-      // Interpolate color
-      const startColor = this.digitColors.get(this.currentDigit)!;
-      const endColor = this.digitColors.get(this.targetDigit)!;
-      const currentColor = startColor.clone().lerp(endColor, eased);
-      this.material.uniforms.color.value = currentColor;
-
-      if (this.morphProgress >= 1.0) {
-        this.isMorphing = false;
-        this.currentDigit = this.targetDigit;
-        this.morphProgress = 0;
-        this.material.uniforms.morphProgress.value = 0;
-        this.material.uniforms.color.value = this.digitColors.get(this.targetDigit);
-      }
-    }
+    // Animation handled by morphTo for now
+    // Can add smooth transitions later
   }
 
   getCurrentDigit(): string {
