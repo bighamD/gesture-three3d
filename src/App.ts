@@ -43,6 +43,9 @@ export class App {
     // Initialize particle system
     this.particleSystem = new ParticleSystem(this.scene);
 
+    // Setup keyboard controls for testing
+    this.setupKeyboardControls();
+
     // Start animation loop
     this.animate();
   }
@@ -65,6 +68,15 @@ export class App {
     } catch (error) {
       console.error('Failed to initialize hand tracking:', error);
     }
+  }
+
+  private setupKeyboardControls() {
+    window.addEventListener('keydown', (e) => {
+      const key = e.key;
+      if (['5', '4', '3', '2', '1'].includes(key)) {
+        this.particleSystem.morphTo(key, 1500);
+      }
+    });
   }
 
   private animate() {
