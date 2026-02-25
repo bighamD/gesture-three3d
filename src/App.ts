@@ -1,11 +1,13 @@
 import * as THREE from 'three';
 import Stats from 'stats.ts';
+import { HandTracker } from './components/HandTracker';
 
 export class App {
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
   private renderer: THREE.WebGLRenderer;
   private stats: Stats;
+  private handTracker: HandTracker;
 
   constructor() {
     // Scene
@@ -30,6 +32,10 @@ export class App {
     this.stats.showPanel(0);
     document.body.appendChild(this.stats.dom);
 
+    // Initialize hand tracking
+    this.handTracker = new HandTracker();
+    this.initHandTracking();
+
     // Start animation loop
     this.animate();
   }
@@ -38,6 +44,16 @@ export class App {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+
+  private async initHandTracking() {
+    try {
+      await this.handTracker.init();
+      await this.handTracker.startCamera();
+      console.log('Hand tracking initialized');
+    } catch (error) {
+      console.error('Failed to initialize hand tracking:', error);
+    }
   }
 
   private animate() {
