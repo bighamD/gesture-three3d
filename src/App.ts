@@ -21,6 +21,10 @@ export class App {
   private lastFiveFingerTime: number = 0;
   private readonly TRIGGER_THRESHOLD = 500; // ms
   private statusElement: HTMLElement;
+  private lastFrameTime: number = performance.now();
+  private frameCount: number = 0;
+  private fpsUpdateInterval: number = 1000; // ms
+  private currentFPS: number = 60;
 
   constructor() {
     // Scene
@@ -224,6 +228,21 @@ export class App {
 
   private animate() {
     this.stats.begin();
+
+    // Calculate FPS
+    this.frameCount++;
+    const now = performance.now();
+    if (now - this.lastFrameTime >= this.fpsUpdateInterval) {
+      this.currentFPS = Math.round((this.frameCount * 1000) / (now - this.lastFrameTime));
+      this.frameCount = 0;
+      this.lastFrameTime = now;
+
+      // Adaptive quality: reduce particles if FPS drops
+      if (this.currentFPS < 45) {
+        console.warn(`Low FPS detected: ${this.currentFPS}`);
+        this.updateStatus(`${this.currentFPS} FPS - Low performance`, 'rgba(255, 170, 0, 0.8)');
+      }
+    }
 
     // Detect hand
     const fingerCount = this.handTracker.detect();
