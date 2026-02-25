@@ -1,9 +1,9 @@
-import { Hands, Camera } from '@mediapipe/hands';
+import { Hands } from '@mediapipe/hands';
 import { Camera as CameraUtils } from '@mediapipe/camera_utils';
 
 export class HandTracker {
   private hands: Hands;
-  private camera: Camera | null = null;
+  private camera: any = null;
   private videoElement: HTMLVideoElement;
   private fingerCount: number = 0;
   private handPosition: [number, number, number] = [0, 0, 0];
@@ -21,7 +21,7 @@ export class HandTracker {
 
     // Initialize Hands with the same config as gemini.html
     this.hands = new Hands({
-      locateFile: (file) => {
+      locateFile: (file: string) => {
         return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
       }
     });

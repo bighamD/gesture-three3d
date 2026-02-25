@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { NumberGenerator, Point2D } from './NumberGenerator';
+import { NumberGenerator } from './NumberGenerator';
 
 interface CubeData {
   velocity: THREE.Vector3;
@@ -10,7 +10,6 @@ export class GravityCubeSystem {
   private scene: THREE.Scene;
   private numberGenerator: NumberGenerator;
   private cubes: THREE.Mesh[] = [];
-  private readonly MAX_CUBES = 500;
   private readonly gravity = -0.025;
   private readonly groundHeight = -5;
   private readonly wallLimit = 12;
@@ -166,7 +165,7 @@ export class GravityCubeSystem {
     this.currentNumber = null;
   }
 
-  update(deltaTime: number): void {
+  update(_deltaTime: number): void {
     this.cubes.forEach(cube => {
       const data = cube.userData as CubeData;
 

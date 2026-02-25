@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { NumberGenerator, Point2D } from './NumberGenerator';
+import { NumberGenerator } from './NumberGenerator';
 
 interface ParticleData {
   velocity: THREE.Vector3;    // 上升速度
@@ -150,7 +150,7 @@ export class ParticleNumberSystem {
     console.log('Hiding number, particles dispersed');
   }
 
-  update(deltaTime: number): void {
+  update(_deltaTime: number): void {
     if (!this.particles) return;
 
     const time = this.clock.getElapsedTime();

@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { HandTracker } from './components/HandTracker';
 import { CameraDisplay } from './components/CameraDisplay';
 import { ParticleNumberSystem } from './components/ParticleNumberSystem';
-import { CountdownState } from './types/particle';
 
 export class App {
   private scene: THREE.Scene;
@@ -11,11 +10,6 @@ export class App {
   private handTracker: HandTracker;
   private cameraDisplay!: CameraDisplay;
   private particleSystem: ParticleNumberSystem;
-  private countdownState: CountdownState = CountdownState.IDLE;
-  private currentPhase: number = 0;
-  private countdownSequence: string[] = ['5', '4', '3', '2', '1'];
-  private lastFiveFingerTime: number = 0;
-  private readonly TRIGGER_THRESHOLD = 500; // ms
   private statusElement: HTMLElement;
   private loadingElement: HTMLElement;
 
@@ -119,8 +113,6 @@ export class App {
       this.hideLoadingScreen();
     } catch (error) {
       console.error('❌ Failed to initialize hand tracking:', error);
-
-      // Hide loading screen on error
       this.hideLoadingScreen();
 
       // Check if camera permission was denied
@@ -143,7 +135,6 @@ export class App {
         retryButton.style.border = 'none';
         retryButton.onclick = async () => {
           retryButton.remove();
-          // Show loading again
           this.loadingElement = document.createElement('div');
           this.loadingElement.style.position = 'fixed';
           this.loadingElement.style.top = '0';
@@ -217,6 +208,9 @@ export class App {
     // 使用稳定的手指数量
     const stableCount = this.getStableFingerCount(fingerCount);
 
+    // 移除自动倒计时功能 - 只保留直接手势控制
+    // 用户伸出几个手指，就显示对应数字的粒子
+
     // Update finger count display（显示实时检测值）
     const countElement = document.getElementById('finger-count');
     if (countElement) {
@@ -228,30 +222,6 @@ export class App {
       this.particleSystem.showNumber(stableCount);
     } else {
       this.particleSystem.hideNumber();
-    }
-  }
-
-  private startCountdown() {
-    this.countdownState = CountdownState.COUNTDOWN;
-    this.currentPhase = 0;
-    this.scheduleNextMorph();
-  }
-
-  private scheduleNextMorph() {
-    if (this.currentPhase < this.countdownSequence.length - 1) {
-      setTimeout(() => {
-        const nextDigit = parseInt(this.countdownSequence[this.currentPhase + 1]);
-        this.particleSystem.showNumber(nextDigit);
-        this.currentPhase++;
-
-        if (this.currentPhase < this.countdownSequence.length - 1) {
-          this.scheduleNextMorph();
-        } else {
-          setTimeout(() => {
-            this.countdownState = CountdownState.COMPLETE;
-          }, 1500);
-        }
-      }, 1500);
     }
   }
 
@@ -274,18 +244,8 @@ export class App {
     // Detect hand
     const fingerCount = this.handTracker.detect();
 
-    // State machine
-    switch (this.countdownState) {
-      case CountdownState.IDLE:
-        this.handleIdleState(fingerCount);
-        break;
-      case CountdownState.COUNTDOWN:
-        // Countdown is running, cubes are being scheduled
-        break;
-      case CountdownState.COMPLETE:
-        // Can add reset logic here
-        break;
-    }
+    // Handle gesture input
+    this.handleIdleState(fingerCount);
 
     // Update particle system
     this.particleSystem.update(0.016);
