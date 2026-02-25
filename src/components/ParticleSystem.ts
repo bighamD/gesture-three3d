@@ -9,6 +9,13 @@ export class ParticleSystem {
   private material: THREE.ShaderMaterial;
   private points: THREE.Points;
   private morphTargets: Map<string, Float32Array> = new Map();
+  private digitColors: Map<string, THREE.Color> = new Map([
+    ['5', new THREE.Color(0xFFFFFF)], // White
+    ['4', new THREE.Color(0xFFAA00)], // Orange
+    ['3', new THREE.Color(0xFF0000)], // Red
+    ['2', new THREE.Color(0xAA00FF)], // Purple
+    ['1', new THREE.Color(0x00AAFF)]  // Blue
+  ]);
   private currentDigit: string = '5';
   private targetDigit: string = '5';
   private morphProgress: number = 0;
@@ -99,19 +106,11 @@ export class ParticleSystem {
     this.isMorphing = true;
     this.morphProgress = 0;
 
-    // Update morph target index based on current and target
-    const digitOrder = ['5', '4', '3', '2', '1'];
-    const targetIndex = digitOrder.indexOf(targetDigit);
-
-    // Update geometry to use current shape as base
+    // Update geometry
     this.geometry.attributes.position.array = this.morphTargets.get(this.currentDigit)!;
     this.geometry.attributes.position.needsUpdate = true;
 
-    // Set morph target
-    if (targetIndex > 0 && this.geometry.morphAttributes.position) {
-      // Morph targets are stored in order [4, 3, 2, 1]
-      const morphIndex = targetIndex - 1;
-    }
+    // Start color transition (will be handled in update)
   }
 
   update(deltaTime: number): void {
@@ -123,11 +122,18 @@ export class ParticleSystem {
       const eased = 1 - Math.pow(1 - this.morphProgress, 3);
       this.material.uniforms.morphProgress.value = eased;
 
+      // Interpolate color
+      const startColor = this.digitColors.get(this.currentDigit)!;
+      const endColor = this.digitColors.get(this.targetDigit)!;
+      const currentColor = startColor.clone().lerp(endColor, eased);
+      this.material.uniforms.color.value = currentColor;
+
       if (this.morphProgress >= 1.0) {
         this.isMorphing = false;
         this.currentDigit = this.targetDigit;
         this.morphProgress = 0;
         this.material.uniforms.morphProgress.value = 0;
+        this.material.uniforms.color.value = this.digitColors.get(this.targetDigit);
       }
     }
   }
