@@ -3,6 +3,7 @@ import Stats from 'stats.ts';
 import { HandTracker } from './components/HandTracker';
 import { CameraDisplay } from './components/CameraDisplay';
 import { ParticleSystem } from './components/ParticleSystem';
+import { CountdownState } from './types/particle';
 
 export class App {
   private scene: THREE.Scene;
@@ -12,6 +13,11 @@ export class App {
   private handTracker: HandTracker;
   private cameraDisplay: CameraDisplay;
   private particleSystem: ParticleSystem;
+  private countdownState: CountdownState = CountdownState.IDLE;
+  private currentPhase: number = 0;
+  private countdownSequence: string[] = ['5', '4', '3', '2', '1'];
+  private lastFiveFingerTime: number = 0;
+  private readonly TRIGGER_THRESHOLD = 500; // ms
 
   constructor() {
     // Scene
@@ -79,11 +85,85 @@ export class App {
     });
   }
 
+  private handleIdleState(fingerCount: number) {
+    if (fingerCount === 5) {
+      if (this.lastFiveFingerTime === 0) {
+        this.lastFiveFingerTime = performance.now();
+      } else if (performance.now() - this.lastFiveFingerTime > this.TRIGGER_THRESHOLD) {
+        // Start countdown
+        this.startCountdown();
+      }
+    } else {
+      this.lastFiveFingerTime = 0;
+    }
+  }
+
+  private startCountdown() {
+    this.countdownState = CountdownState.COUNTDOWN;
+    this.currentPhase = 0;
+    this.scheduleNextMorph();
+    console.log('Countdown started!');
+  }
+
+  private scheduleNextMorph() {
+    if (this.currentPhase < this.countdownSequence.length - 1) {
+      setTimeout(() => {
+        const nextDigit = this.countdownSequence[this.currentPhase + 1];
+        this.particleSystem.morphTo(nextDigit, 1500);
+        this.currentPhase++;
+
+        if (this.currentPhase < this.countdownSequence.length - 1) {
+          this.scheduleNextMorph();
+        } else {
+          setTimeout(() => {
+            this.countdownState = CountdownState.COMPLETE;
+            console.log('Countdown complete!');
+          }, 1500);
+        }
+      }, 1500);
+    }
+  }
+
+  private handleCountdownState() {
+    // Countdown is running, morphs are scheduled
+    // Can add cancellation logic here if hand is removed
+  }
+
+  private handleCompleteState(fingerCount: number) {
+    // Reset when 5 fingers shown again
+    if (fingerCount === 5) {
+      this.lastFiveFingerTime = performance.now();
+    } else if (this.lastFiveFingerTime > 0 && performance.now() - this.lastFiveFingerTime > this.TRIGGER_THRESHOLD) {
+      this.resetCountdown();
+    }
+  }
+
+  private resetCountdown() {
+    this.countdownState = CountdownState.IDLE;
+    this.currentPhase = 0;
+    this.lastFiveFingerTime = 0;
+    this.particleSystem.morphTo('5', 1000);
+    console.log('Countdown reset');
+  }
+
   private animate() {
     this.stats.begin();
 
     // Detect hand
-    this.handTracker.detect();
+    const fingerCount = this.handTracker.detect();
+
+    // State machine
+    switch (this.countdownState) {
+      case CountdownState.IDLE:
+        this.handleIdleState(fingerCount);
+        break;
+      case CountdownState.COUNTDOWN:
+        this.handleCountdownState();
+        break;
+      case CountdownState.COMPLETE:
+        this.handleCompleteState(fingerCount);
+        break;
+    }
 
     // Update particle system
     this.particleSystem.update(0.016); // Assume 60 FPS
