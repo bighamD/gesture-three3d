@@ -95,8 +95,34 @@ export class App {
       this.cameraDisplay = new CameraDisplay(this.handTracker.video);
 
       console.log('Hand tracking initialized');
+      this.updateStatus('Hand tracking active', 'rgba(0, 255, 0, 0.8)');
     } catch (error) {
       console.error('Failed to initialize hand tracking:', error);
+
+      // Check if camera permission was denied
+      if (error instanceof DOMException && error.name === 'NotAllowedError') {
+        this.updateStatus('Camera access denied. Please allow camera access.', 'rgba(255, 0, 0, 0.8)');
+
+        // Add retry button
+        const retryButton = document.createElement('button');
+        retryButton.textContent = 'Enable Camera';
+        retryButton.style.position = 'fixed';
+        retryButton.style.top = '80px';
+        retryButton.style.left = '50%';
+        retryButton.style.transform = 'translateX(-50%)';
+        retryButton.style.padding = '12px 24px';
+        retryButton.style.borderRadius = '8px';
+        retryButton.style.fontSize = '16px';
+        retryButton.style.cursor = 'pointer';
+        retryButton.style.zIndex = '100';
+        retryButton.onclick = async () => {
+          retryButton.remove();
+          await this.initHandTracking();
+        };
+        document.body.appendChild(retryButton);
+      } else {
+        this.updateStatus('Failed to load hand tracking. Please refresh.', 'rgba(255, 0, 0, 0.8)');
+      }
     }
   }
 
