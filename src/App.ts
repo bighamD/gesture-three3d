@@ -304,12 +304,6 @@ export class App {
     this.particleSystem.update(0.016);
     this.particleTrail.update(0.016);
 
-    // Draw camera frame with skeleton
-    const results = this.handTracker.getLandmarks();
-    if (results?.landmarks[0]) {
-      this.cameraDisplay.drawFrame(results.landmarks[0]);
-    }
-
     requestAnimationFrame(this.animate.bind(this));
     this.renderer.render(this.scene, this.camera);
     this.stats.end();

@@ -1,11 +1,13 @@
-import { HandLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
+import { Hands, Camera } from '@mediapipe/hands';
+import { Camera as CameraUtils } from '@mediapipe/camera_utils';
 
 export class HandTracker {
-  private landmarker: HandLandmarker | null = null;
+  private hands: Hands;
+  private camera: Camera | null = null;
   private videoElement: HTMLVideoElement;
   private fingerCount: number = 0;
   private handPosition: [number, number, number] = [0, 0, 0];
-  private isInitialized: boolean = false;
+  private onResultsCallback: ((fingers: number) => void) | null = null;
 
   constructor() {
     this.videoElement = document.createElement('video');
@@ -14,124 +16,100 @@ export class HandTracker {
     this.videoElement.muted = true;
     this.videoElement.style.display = 'none';
     document.body.appendChild(this.videoElement);
+
+    // Initialize Hands with the same config as gemini.html
+    this.hands = new Hands({
+      locateFile: (file) => {
+        return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+      }
+    });
+
+    this.hands.setOptions({
+      maxNumHands: 1,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.6,
+      minTrackingConfidence: 0.6
+    });
   }
 
   async init(): Promise<void> {
-    if (this.isInitialized) {
-      console.log('HandTracker already initialized');
-      return;
-    }
+    console.log('Initializing MediaPipe Hands (legacy API)...');
 
-    try {
-      console.log('Loading MediaPipe vision files...');
-      const vision = await FilesetResolver.forVisionTasks(
-        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm'
-      );
-      console.log('Vision files loaded, creating hand landmarker...');
+    return new Promise<void>((resolve) => {
+      this.hands.onResults((results) => {
+        // Hide loading screen if exists
+        const loadingElement = document.getElementById('loading');
+        if (loadingElement) {
+          loadingElement.style.display = 'none';
+        }
 
-      this.landmarker = await HandLandmarker.createFromOptions(vision, {
-        baseOptions: {
-          modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
-          // Don't specify delegate - let MediaPipe choose
-        },
-        runningMode: 'VIDEO',
-        numHands: 1
+        if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+          const landmarks = results.multiHandLandmarks[0];
+          this.fingerCount = this.countFingers(landmarks);
+          this.handPosition = this.calculateHandPosition(landmarks);
+
+          // Call callback if registered
+          if (this.onResultsCallback) {
+            this.onResultsCallback(this.fingerCount);
+          }
+        } else {
+          this.fingerCount = 0;
+        }
+
+        resolve();
       });
 
-      this.isInitialized = true;
-      console.log('✅ Hand tracking initialized successfully');
-    } catch (error) {
-      console.error('❌ Failed to initialize MediaPipe:', error);
-      throw error;
-    }
+      console.log('✅ MediaPipe Hands initialized');
+    });
   }
 
   async startCamera(): Promise<void> {
-    try {
-      console.log('Requesting camera access...');
+    console.log('Starting camera...');
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          facingMode: 'user'
-        }
-      });
+    this.camera = new CameraUtils(this.videoElement, {
+      onFrame: async () => {
+        await this.hands.send({ image: this.videoElement });
+      },
+      width: 640,
+      height: 480
+    });
 
-      this.videoElement.srcObject = stream;
+    await this.camera.start();
 
-      // Wait for video to be ready
-      await new Promise<void>((resolve) => {
-        this.videoElement.onloadedmetadata = () => {
-          console.log(`Video ready: ${this.videoElement.videoWidth}x${this.videoElement.videoHeight}`);
-          resolve();
-        };
-      });
-
-      await this.videoElement.play();
-      console.log('✅ Camera started successfully');
-    } catch (error) {
-      console.error('❌ Failed to start camera:', error);
-      throw error;
-    }
+    console.log('✅ Camera started');
   }
 
   detect(): number {
-    if (!this.landmarker || !this.isInitialized) {
-      return 0;
-    }
-
-    if (this.videoElement.readyState < 2) {
-      return 0;
-    }
-
-    try {
-      const results = this.landmarker.detectForVideo(this.videoElement, performance.now());
-
-      if (results.landmarks.length === 0) {
-        this.fingerCount = 0;
-        return 0;
-      }
-
-      const landmarks = results.landmarks[0];
-      this.fingerCount = this.countFingers(landmarks);
-      this.handPosition = this.calculateHandPosition(landmarks);
-
-      return this.fingerCount;
-    } catch (error) {
-      console.error('Error during hand detection:', error);
-      return 0;
-    }
+    // Detection happens automatically via CameraUtils
+    return this.fingerCount;
   }
 
-  private countFingers(landmarks: Array<{x: number, y: number, z: number}>): number {
-    try {
-      // Thumb: compare tip (4) vs IP (3)
-      const thumbIsOpen = Math.abs(landmarks[4].x - landmarks[3].x) > 0.05;
+  private countFingers(landmarks: any[]): number {
+    let count = 0;
 
-      // Other fingers: tip y < PIP y (pointing up)
-      const indexIsOpen = landmarks[8].y < landmarks[6].y;
-      const middleIsOpen = landmarks[12].y < landmarks[10].y;
-      const ringIsOpen = landmarks[16].y < landmarks[14].y;
-      const pinkyIsOpen = landmarks[20].y < landmarks[18].y;
+    // Thumb: compare tip (4) with IP (2) - using gemini.html's approach
+    const thumbTip = landmarks[4];
+    const thumbBase = landmarks[2];
+    const isThumbOut = Math.abs(thumbTip.x - thumbBase.x) > 0.05;
+    if (isThumbOut) count++;
 
-      let count = 0;
-      if (thumbIsOpen) count++;
-      if (indexIsOpen) count++;
-      if (middleIsOpen) count++;
-      if (ringIsOpen) count++;
-      if (pinkyIsOpen) count++;
+    // Index finger (8 tip, 6 PIP)
+    if (landmarks[8].y < landmarks[6].y) count++;
 
-      return count;
-    } catch (error) {
-      console.error('Error counting fingers:', error);
-      return 0;
-    }
+    // Middle finger (12 tip, 10 PIP)
+    if (landmarks[12].y < landmarks[10].y) count++;
+
+    // Ring finger (16 tip, 14 PIP)
+    if (landmarks[16].y < landmarks[14].y) count++;
+
+    // Pinky finger (20 tip, 18 PIP)
+    if (landmarks[20].y < landmarks[18].y) count++;
+
+    return Math.min(count, 5);
   }
 
-  private calculateHandPosition(landmarks: Array<{x: number, y: number, z: number}>): [number, number, number] {
-    // Use wrist position (landmark 0) as hand position
-    // Normalize to 3D space (-10 to +10)
+  private calculateHandPosition(landmarks: any[]): [number, number, number] {
+    // Use wrist position (landmark 0)
     return [
       (landmarks[0].x - 0.5) * 20,
       -(landmarks[0].y - 0.5) * 20,
@@ -148,18 +126,15 @@ export class HandTracker {
   }
 
   getLandmarks() {
-    if (!this.landmarker || !this.isInitialized) {
-      return null;
-    }
-    try {
-      return this.landmarker.detectForVideo(this.videoElement, performance.now());
-    } catch (error) {
-      console.error('Error getting landmarks:', error);
-      return null;
-    }
+    // Legacy API doesn't support direct detection
+    return null;
   }
 
   get video() {
     return this.videoElement;
+  }
+
+  onResults(callback: (fingers: number) => void) {
+    this.onResultsCallback = callback;
   }
 }
