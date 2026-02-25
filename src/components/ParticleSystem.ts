@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { NumberGenerator } from './NumberGenerator';
-import type { ParticleShape } from '../types/particle';
 
 export class ParticleSystem {
   private scene: THREE.Scene;
@@ -107,13 +106,17 @@ export class ParticleSystem {
     this.morphProgress = 0;
 
     // Update geometry
-    this.geometry.attributes.position.array = this.morphTargets.get(this.currentDigit)!;
-    this.geometry.attributes.position.needsUpdate = true;
+    const currentPositions = this.morphTargets.get(this.currentDigit)!;
+    const positionAttr = this.geometry.attributes.position as THREE.BufferAttribute;
+    for (let i = 0; i < currentPositions.length; i++) {
+      positionAttr.array[i] = currentPositions[i];
+    }
+    positionAttr.needsUpdate = true;
 
     // Start color transition (will be handled in update)
   }
 
-  update(deltaTime: number): void {
+  update(_deltaTime: number): void {
     if (this.isMorphing) {
       const elapsed = performance.now() - this.morphStartTime;
       this.morphProgress = Math.min(elapsed / this.morphDuration, 1.0);

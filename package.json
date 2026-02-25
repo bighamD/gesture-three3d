@@ -13,8 +13,10 @@
     "@types/node": "^22.10.5",
     "autoprefixer": "^10.4.24",
     "postcss": "^8.5.6",
+    "serve": "^14.2.5",
     "stats.ts": "^2.1.6",
     "tailwindcss": "^4.2.1",
+    "terser": "^5.46.0",
     "typescript": "~5.6.2",
     "vite": "^6.0.7"
   },

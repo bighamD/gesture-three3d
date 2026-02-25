@@ -1,5 +1,3 @@
-import type { ParticleShape } from '../types/particle';
-
 export class NumberGenerator {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;

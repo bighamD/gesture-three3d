@@ -3,7 +3,6 @@ import { HandLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 export class HandTracker {
   private landmarker: HandLandmarker | null = null;
   private videoElement: HTMLVideoElement;
-  private lastDetectionTime: number = 0;
   private fingerCount: number = 0;
   private handPosition: [number, number, number] = [0, 0, 0];
 

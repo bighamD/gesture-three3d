@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import Stats from 'stats.ts';
+import * as Stats from 'stats.ts';
 import { HandTracker } from './components/HandTracker';
 import { CameraDisplay } from './components/CameraDisplay';
 import { ParticleSystem } from './components/ParticleSystem';
@@ -10,9 +10,9 @@ export class App {
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
   private renderer: THREE.WebGLRenderer;
-  private stats: Stats;
+  private stats: any;
   private handTracker: HandTracker;
-  private cameraDisplay: CameraDisplay;
+  private cameraDisplay!: CameraDisplay;
   private particleSystem: ParticleSystem;
   private particleTrail: ParticleTrail;
   private countdownState: CountdownState = CountdownState.IDLE;
@@ -68,7 +68,7 @@ export class App {
     window.addEventListener('resize', this.onWindowResize.bind(this));
 
     // FPS counter
-    this.stats = new Stats();
+    this.stats = new (Stats as any)();
     this.stats.showPanel(0);
     document.body.appendChild(this.stats.dom);
 
