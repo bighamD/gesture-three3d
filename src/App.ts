@@ -1,31 +1,28 @@
 import * as THREE from 'three';
 import { HandTracker } from './components/HandTracker';
 import { CameraDisplay } from './components/CameraDisplay';
-import { ParticleSystem } from './components/ParticleSystem';
-import { ParticleTrail } from './components/ParticleTrail';
+import { ParticleNumberSystem } from './components/ParticleNumberSystem';
 import { CountdownState } from './types/particle';
-import { Stats } from 'stats.ts';
 
 export class App {
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
   private renderer: THREE.WebGLRenderer;
-  private stats: any;
   private handTracker: HandTracker;
   private cameraDisplay!: CameraDisplay;
-  private particleSystem: ParticleSystem;
-  private particleTrail: ParticleTrail;
+  private particleSystem: ParticleNumberSystem;
   private countdownState: CountdownState = CountdownState.IDLE;
   private currentPhase: number = 0;
   private countdownSequence: string[] = ['5', '4', '3', '2', '1'];
   private lastFiveFingerTime: number = 0;
   private readonly TRIGGER_THRESHOLD = 500; // ms
   private statusElement: HTMLElement;
-  private lastFrameTime: number = performance.now();
-  private frameCount: number = 0;
-  private fpsUpdateInterval: number = 1000; // ms
-  private currentFPS: number = 60;
   private loadingElement: HTMLElement;
+
+  // 手势稳定性检测
+  private fingerCountHistory: number[] = [];
+  private readonly STABILITY_FRAMES = 5; // 需要连续N帧相同才认为稳定
+  private stableFingerCount: number = 0;
 
   constructor() {
     // Create loading screen
@@ -44,19 +41,21 @@ export class App {
     this.loadingElement.style.fontFamily = 'Arial, sans-serif';
     this.loadingElement.innerHTML = `
       <div style="color: white; font-size: 32px; font-weight: bold; margin-bottom: 20px;">
-        Loading 3D Particle Countdown
+        Initializing...
       </div>
       <div style="color: #aaa; font-size: 16px;">Please wait while we load the hand tracking model...</div>
     `;
     document.body.appendChild(this.loadingElement);
 
-    // Scene
+    // Scene - dark background for fire effect
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x000000);
+    this.scene.background = new THREE.Color(0x050505);
+    this.scene.fog = new THREE.FogExp2(0x050505, 0.02);
 
-    // Camera
+    // Camera - positioned for better particle viewing
     this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    this.camera.position.z = 30;
+    this.camera.position.set(0, 0, 20);
+    this.camera.lookAt(0, 0, 0);
 
     // Renderer
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -67,37 +66,29 @@ export class App {
     // Handle resize
     window.addEventListener('resize', this.onWindowResize.bind(this));
 
-    // FPS counter
-    this.stats = new Stats();
-    this.stats.showPanel(0);
-    document.body.appendChild(this.stats.dom);
-
     // Initialize hand tracking
     this.handTracker = new HandTracker();
     this.initHandTracking();
 
     // Initialize particle system
-    this.particleSystem = new ParticleSystem(this.scene);
-
-    // Initialize particle trail
-    this.particleTrail = new ParticleTrail(this.scene);
+    this.particleSystem = new ParticleNumberSystem(this.scene);
 
     // Create status indicator
     this.statusElement = document.createElement('div');
     this.statusElement.style.position = 'fixed';
-    this.statusElement.style.top = '20px';
-    this.statusElement.style.left = '50%';
-    this.statusElement.style.transform = 'translateX(-50%)';
-    this.statusElement.style.padding = '12px 24px';
-    this.statusElement.style.borderRadius = '8px';
-    this.statusElement.style.fontFamily = 'Arial, sans-serif';
-    this.statusElement.style.fontSize = '18px';
-    this.statusElement.style.fontWeight = 'bold';
-    this.statusElement.style.color = 'white';
+    this.statusElement.style.top = '30px';
+    this.statusElement.style.left = '30px';
     this.statusElement.style.zIndex = '100';
-    this.statusElement.style.transition = 'background-color 0.3s';
-    this.statusElement.textContent = 'Show 5 fingers to start';
-    this.statusElement.style.backgroundColor = 'rgba(100, 100, 100, 0.8)';
+    this.statusElement.style.pointerEvents = 'none';
+    this.statusElement.style.fontFamily = '-apple-system, BlinkMacSystemFont, "SF Pro Display", Arial, sans-serif';
+    this.statusElement.innerHTML = `
+      <div style="font-size: 13px; font-weight: 500; color: rgba(255, 255, 255, 0.6); margin-bottom: 6px;">
+        Fingers Detected
+      </div>
+      <div id="finger-count" style="font-size: 48px; font-weight: 200; color: #ffffff; letter-spacing: -1px;">
+        —
+      </div>
+    `;
     document.body.appendChild(this.statusElement);
 
     // Setup keyboard controls for testing
@@ -116,42 +107,67 @@ export class App {
   private async initHandTracking() {
     try {
       await this.handTracker.init();
+      console.log('Hand tracker initialized, starting camera...');
+
       await this.handTracker.startCamera();
 
-      // Initialize camera display
+      // Initialize camera display and link it to hand tracker
       this.cameraDisplay = new CameraDisplay(this.handTracker.video);
+      this.handTracker.setCameraDisplay(this.cameraDisplay);
 
-      console.log('Hand tracking initialized');
+      console.log('✅ Hand tracking fully initialized');
       this.hideLoadingScreen();
-      this.updateStatus('Show 5 fingers to start', 'rgba(100, 100, 100, 0.8)');
     } catch (error) {
-      console.error('Failed to initialize hand tracking:', error);
+      console.error('❌ Failed to initialize hand tracking:', error);
+
+      // Hide loading screen on error
+      this.hideLoadingScreen();
 
       // Check if camera permission was denied
       if (error instanceof DOMException && error.name === 'NotAllowedError') {
-        this.hideLoadingScreen();
-        this.updateStatus('Camera access denied. Please allow camera access.', 'rgba(255, 0, 0, 0.8)');
+        this.updateStatus('Camera access denied. Please allow camera access.');
 
         // Add retry button
         const retryButton = document.createElement('button');
         retryButton.textContent = 'Enable Camera';
         retryButton.style.position = 'fixed';
-        retryButton.style.top = '80px';
-        retryButton.style.left = '50%';
-        retryButton.style.transform = 'translateX(-50%)';
+        retryButton.style.top = '100px';
+        retryButton.style.left = '30px';
         retryButton.style.padding = '12px 24px';
         retryButton.style.borderRadius = '8px';
         retryButton.style.fontSize = '16px';
         retryButton.style.cursor = 'pointer';
         retryButton.style.zIndex = '100';
+        retryButton.style.backgroundColor = '#4CAF50';
+        retryButton.style.color = 'white';
+        retryButton.style.border = 'none';
         retryButton.onclick = async () => {
           retryButton.remove();
+          // Show loading again
+          this.loadingElement = document.createElement('div');
+          this.loadingElement.style.position = 'fixed';
+          this.loadingElement.style.top = '0';
+          this.loadingElement.style.left = '0';
+          this.loadingElement.style.width = '100%';
+          this.loadingElement.style.height = '100%';
+          this.loadingElement.style.backgroundColor = 'rgba(0, 0, 0, 0.9)';
+          this.loadingElement.style.display = 'flex';
+          this.loadingElement.style.flexDirection = 'column';
+          this.loadingElement.style.justifyContent = 'center';
+          this.loadingElement.style.alignItems = 'center';
+          this.loadingElement.style.zIndex = '1000';
+          this.loadingElement.style.fontFamily = 'Arial, sans-serif';
+          this.loadingElement.innerHTML = `
+            <div style="color: white; font-size: 32px; font-weight: bold; margin-bottom: 20px;">
+              Initializing...
+            </div>
+          `;
+          document.body.appendChild(this.loadingElement);
           await this.initHandTracking();
         };
         document.body.appendChild(retryButton);
       } else {
-        this.hideLoadingScreen();
-        this.updateStatus('Failed to load hand tracking. Please refresh.', 'rgba(255, 0, 0, 0.8)');
+        this.updateStatus('Failed to load hand tracking. Please refresh.');
       }
     }
   }
@@ -159,97 +175,91 @@ export class App {
   private setupKeyboardControls() {
     window.addEventListener('keydown', (e) => {
       const key = e.key;
-      if (['5', '4', '3', '2', '1'].includes(key)) {
-        this.particleSystem.morphTo(key, 1500);
+      if (['0', '1', '2', '3', '4', '5'].includes(key)) {
+        const num = parseInt(key);
+        if (num > 0) {
+          this.particleSystem.showNumber(num);
+        } else {
+          this.particleSystem.hideNumber();
+        }
       }
     });
   }
 
-  private handleIdleState(fingerCount: number) {
-    if (fingerCount === 5) {
-      const elapsed = this.lastFiveFingerTime > 0 ? performance.now() - this.lastFiveFingerTime : 0;
-      if (elapsed === 0) {
-        this.lastFiveFingerTime = performance.now();
-      }
-      const progress = Math.min(elapsed / this.TRIGGER_THRESHOLD, 1);
-      this.updateStatus(
-        `Hold 5 fingers... ${Math.round(progress * 100)}%`,
-        `rgba(255, ${Math.round(170 * progress)}, 0, 0.8)`
-      );
+  /**
+   * 计算稳定的手指数量（防抖）
+   * 只有连续N帧都检测到相同数量才认为稳定
+   */
+  private getStableFingerCount(currentCount: number): number {
+    this.fingerCountHistory.push(currentCount);
 
-      if (elapsed > this.TRIGGER_THRESHOLD) {
-        this.startCountdown();
-      }
+    // 只保留最近的N帧
+    if (this.fingerCountHistory.length > this.STABILITY_FRAMES) {
+      this.fingerCountHistory.shift();
+    }
+
+    // 如果历史记录不足N帧，返回0（等待稳定）
+    if (this.fingerCountHistory.length < this.STABILITY_FRAMES) {
+      return this.stableFingerCount;
+    }
+
+    // 检查最近N帧是否都相同
+    const allSame = this.fingerCountHistory.every(count => count === this.fingerCountHistory[0]);
+
+    if (allSame) {
+      this.stableFingerCount = this.fingerCountHistory[0];
+    }
+
+    return this.stableFingerCount;
+  }
+
+  private handleIdleState(fingerCount: number) {
+    // 使用稳定的手指数量
+    const stableCount = this.getStableFingerCount(fingerCount);
+
+    // Update finger count display（显示实时检测值）
+    const countElement = document.getElementById('finger-count');
+    if (countElement) {
+      countElement.textContent = fingerCount > 0 ? fingerCount.toString() : '—';
+    }
+
+    // Direct control: show/hide number based on finger count
+    if (stableCount > 0) {
+      this.particleSystem.showNumber(stableCount);
     } else {
-      this.lastFiveFingerTime = 0;
-      this.updateStatus('Show 5 fingers to start', 'rgba(100, 100, 100, 0.8)');
+      this.particleSystem.hideNumber();
     }
   }
 
   private startCountdown() {
     this.countdownState = CountdownState.COUNTDOWN;
     this.currentPhase = 0;
-    this.updateStatus('Countdown: 5', 'rgba(0, 170, 255, 0.8)');
     this.scheduleNextMorph();
   }
 
   private scheduleNextMorph() {
     if (this.currentPhase < this.countdownSequence.length - 1) {
       setTimeout(() => {
-        const nextDigit = this.countdownSequence[this.currentPhase + 1];
-        this.particleSystem.morphTo(nextDigit, 1500);
+        const nextDigit = parseInt(this.countdownSequence[this.currentPhase + 1]);
+        this.particleSystem.showNumber(nextDigit);
         this.currentPhase++;
-
-        const colors = ['5', '4', '3', '2', '1'].map(d => {
-          const map: Record<string, string> = {
-            '5': 'rgba(255, 255, 255, 0.8)',
-            '4': 'rgba(255, 170, 0, 0.8)',
-            '3': 'rgba(255, 0, 0, 0.8)',
-            '2': 'rgba(170, 0, 255, 0.8)',
-            '1': 'rgba(0, 170, 255, 0.8)'
-          };
-          return map[d];
-        });
-
-        this.updateStatus(`Countdown: ${nextDigit}`, colors[this.currentPhase]);
 
         if (this.currentPhase < this.countdownSequence.length - 1) {
           this.scheduleNextMorph();
         } else {
           setTimeout(() => {
             this.countdownState = CountdownState.COMPLETE;
-            this.updateStatus('Complete! Show 5 fingers to reset', 'rgba(0, 255, 0, 0.8)');
           }, 1500);
         }
       }, 1500);
     }
   }
 
-  private handleCountdownState() {
-    // Countdown is running, morphs are scheduled
-    // Can add cancellation logic here if hand is removed
-  }
-
-  private handleCompleteState(fingerCount: number) {
-    // Reset when 5 fingers shown again
-    if (fingerCount === 5) {
-      this.lastFiveFingerTime = performance.now();
-    } else if (this.lastFiveFingerTime > 0 && performance.now() - this.lastFiveFingerTime > this.TRIGGER_THRESHOLD) {
-      this.resetCountdown();
+  private updateStatus(message: string) {
+    const countElement = document.getElementById('finger-count');
+    if (countElement) {
+      countElement.textContent = message;
     }
-  }
-
-  private resetCountdown() {
-    this.countdownState = CountdownState.IDLE;
-    this.currentPhase = 0;
-    this.lastFiveFingerTime = 0;
-    this.particleSystem.morphTo('5', 1000);
-    console.log('Countdown reset');
-  }
-
-  private updateStatus(message: string, color: string = 'rgba(100, 100, 100, 0.8)') {
-    this.statusElement.textContent = message;
-    this.statusElement.style.backgroundColor = color;
   }
 
   private hideLoadingScreen() {
@@ -261,31 +271,8 @@ export class App {
   }
 
   private animate() {
-    this.stats.begin();
-
-    // Calculate FPS
-    this.frameCount++;
-    const now = performance.now();
-    if (now - this.lastFrameTime >= this.fpsUpdateInterval) {
-      this.currentFPS = Math.round((this.frameCount * 1000) / (now - this.lastFrameTime));
-      this.frameCount = 0;
-      this.lastFrameTime = now;
-
-      // Adaptive quality: reduce particles if FPS drops
-      if (this.currentFPS < 45) {
-        console.warn(`Low FPS detected: ${this.currentFPS}`);
-        this.updateStatus(`${this.currentFPS} FPS - Low performance`, 'rgba(255, 170, 0, 0.8)');
-      }
-    }
-
     // Detect hand
     const fingerCount = this.handTracker.detect();
-    const handPos = this.handTracker.getHandPosition();
-
-    // Spawn trail particles if hand is detected
-    if (fingerCount > 0) {
-      this.particleTrail.spawn(handPos);
-    }
 
     // State machine
     switch (this.countdownState) {
@@ -293,19 +280,17 @@ export class App {
         this.handleIdleState(fingerCount);
         break;
       case CountdownState.COUNTDOWN:
-        this.handleCountdownState();
+        // Countdown is running, cubes are being scheduled
         break;
       case CountdownState.COMPLETE:
-        this.handleCompleteState(fingerCount);
+        // Can add reset logic here
         break;
     }
 
-    // Update particle systems
+    // Update particle system
     this.particleSystem.update(0.016);
-    this.particleTrail.update(0.016);
 
     requestAnimationFrame(this.animate.bind(this));
     this.renderer.render(this.scene, this.camera);
-    this.stats.end();
   }
 }

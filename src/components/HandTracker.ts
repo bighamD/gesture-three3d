@@ -8,6 +8,8 @@ export class HandTracker {
   private fingerCount: number = 0;
   private handPosition: [number, number, number] = [0, 0, 0];
   private onResultsCallback: ((fingers: number) => void) | null = null;
+  private cameraDisplay: any = null; // CameraDisplay reference
+  private currentLandmarks: any[] | null = null;
 
   constructor() {
     this.videoElement = document.createElement('video');
@@ -37,16 +39,16 @@ export class HandTracker {
 
     return new Promise<void>((resolve) => {
       this.hands.onResults((results) => {
-        // Hide loading screen if exists
-        const loadingElement = document.getElementById('loading');
-        if (loadingElement) {
-          loadingElement.style.display = 'none';
-        }
-
         if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
           const landmarks = results.multiHandLandmarks[0];
+          this.currentLandmarks = landmarks;
           this.fingerCount = this.countFingers(landmarks);
           this.handPosition = this.calculateHandPosition(landmarks);
+
+          // Update camera display with landmarks
+          if (this.cameraDisplay) {
+            this.cameraDisplay.updateLandmarks(landmarks);
+          }
 
           // Call callback if registered
           if (this.onResultsCallback) {
@@ -54,11 +56,16 @@ export class HandTracker {
           }
         } else {
           this.fingerCount = 0;
+          this.currentLandmarks = null;
+          // Clear landmarks from display
+          if (this.cameraDisplay) {
+            this.cameraDisplay.updateLandmarks(null);
+          }
         }
-
-        resolve();
       });
 
+      // Resolve immediately after setting up onResults
+      resolve();
       console.log('✅ MediaPipe Hands initialized');
     });
   }
@@ -125,16 +132,19 @@ export class HandTracker {
     return this.fingerCount;
   }
 
-  getLandmarks() {
-    // Legacy API doesn't support direct detection
-    return null;
-  }
-
   get video() {
     return this.videoElement;
   }
 
   onResults(callback: (fingers: number) => void) {
     this.onResultsCallback = callback;
+  }
+
+  setCameraDisplay(cameraDisplay: any): void {
+    this.cameraDisplay = cameraDisplay;
+  }
+
+  getLandmarks() {
+    return this.currentLandmarks;
   }
 }

@@ -2,6 +2,8 @@ export class CameraDisplay {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private videoElement: HTMLVideoElement;
+  private animationId: number | null = null;
+  private landmarks: Array<{x: number, y: number, z: number}> | null = null;
 
   constructor(videoElement: HTMLVideoElement) {
     this.videoElement = videoElement;
@@ -11,19 +13,38 @@ export class CameraDisplay {
     this.canvas.width = 320;
     this.canvas.height = 240;
     this.canvas.style.position = 'fixed';
-    this.canvas.style.bottom = '20px';
-    this.canvas.style.right = '20px';
-    this.canvas.style.border = '2px solid white';
-    this.canvas.style.borderRadius = '8px';
-    this.canvas.style.zIndex = '100';
+    this.canvas.style.bottom = '30px';
+    this.canvas.style.right = '30px';
+    this.canvas.style.border = '1px solid rgba(255, 255, 255, 0.15)';
+    this.canvas.style.borderRadius = '12px';
+    this.canvas.style.zIndex = '10';
+    this.canvas.style.overflow = 'hidden';
+    this.canvas.style.boxShadow = '0 4px 24px rgba(0, 0, 0, 0.5)';
+    this.canvas.style.transform = 'scaleX(-1)'; // Mirror effect
+    this.canvas.style.backdropFilter = 'blur(4px)';
     document.body.appendChild(this.canvas);
 
     const ctx = this.canvas.getContext('2d');
     if (!ctx) throw new Error('Could not get canvas context');
     this.ctx = ctx;
+
+    // Start animation loop
+    this.startAnimation();
   }
 
-  drawFrame(landmarks?: Array<{x: number, y: number, z: number}>): void {
+  private startAnimation(): void {
+    const draw = () => {
+      this.drawFrame();
+      this.animationId = requestAnimationFrame(draw);
+    };
+    draw();
+  }
+
+  updateLandmarks(landmarks: Array<{x: number, y: number, z: number}> | null): void {
+    this.landmarks = landmarks;
+  }
+
+  private drawFrame(): void {
     const width = this.canvas.width;
     const height = this.canvas.height;
 
@@ -31,17 +52,23 @@ export class CameraDisplay {
     this.ctx.clearRect(0, 0, width, height);
 
     // Draw video frame
-    this.ctx.drawImage(this.videoElement, 0, 0, width, height);
+    if (this.videoElement.readyState >= 2) {
+      this.ctx.save();
+      this.ctx.scale(-1, 1); // Mirror effect
+      this.ctx.drawImage(this.videoElement, -width, 0, width, height);
+      this.ctx.restore();
+    }
 
     // Draw skeleton if landmarks available
-    if (landmarks) {
-      this.drawSkeleton(landmarks, width, height);
+    if (this.landmarks) {
+      this.drawSkeleton(this.landmarks, width, height);
     }
   }
 
   private drawSkeleton(landmarks: Array<{x: number, y: number, z: number}>, width: number, height: number): void {
-    this.ctx.strokeStyle = '#00FF00';
-    this.ctx.lineWidth = 2;
+    this.ctx.save();
+    this.ctx.scale(-1, 1); // Mirror effect for skeleton too
+    this.ctx.translate(-width, 0);
 
     // Draw connections
     const connections = [
@@ -52,6 +79,11 @@ export class CameraDisplay {
       [0, 17], [17, 18], [18, 19], [19, 20], // Pinky
       [5, 9], [9, 13], [13, 17] // Palm
     ];
+
+    // Draw lines
+    this.ctx.strokeStyle = 'rgba(0, 255, 255, 0.8)';
+    this.ctx.lineWidth = 2;
+    this.ctx.lineCap = 'round';
 
     for (const [start, end] of connections) {
       const startX = landmarks[start].x * width;
@@ -66,11 +98,22 @@ export class CameraDisplay {
     }
 
     // Draw keypoints
-    this.ctx.fillStyle = '#FF0000';
+    this.ctx.fillStyle = 'rgba(255, 100, 100, 0.9)';
     for (const landmark of landmarks) {
       this.ctx.beginPath();
-      this.ctx.arc(landmark.x * width, landmark.y * height, 3, 0, 2 * Math.PI);
+      this.ctx.arc(landmark.x * width, landmark.y * height, 4, 0, 2 * Math.PI);
       this.ctx.fill();
+    }
+
+    this.ctx.restore();
+  }
+
+  dispose(): void {
+    if (this.animationId !== null) {
+      cancelAnimationFrame(this.animationId);
+    }
+    if (this.canvas.parentNode) {
+      this.canvas.parentNode.removeChild(this.canvas);
     }
   }
 }
